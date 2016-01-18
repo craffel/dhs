@@ -5,7 +5,7 @@ import numpy as np
 import theano.tensor as T
 import theano
 import lasagne
-import hashing_utils
+from . import utils
 import collections
 
 
@@ -81,11 +81,11 @@ def train_cross_modality_hasher(X_train, Y_train, X_validate, Y_validate,
 
     # Create networks
     layers = {
-        'X': hashing_utils.build_network(
+        'X': utils.build_network(
             (None, X_train[0].shape[0], sequence_length, X_train[0].shape[2]),
             num_filters['X'], filter_size['X'], ds['X'],
             hidden_layer_sizes['X'], dropout, n_bits),
-        'Y': hashing_utils.build_network(
+        'Y': utils.build_network(
             (None, Y_train[0].shape[0], sequence_length, Y_train[0].shape[2]),
             num_filters['Y'], filter_size['Y'], ds['Y'],
             hidden_layer_sizes['Y'], dropout, n_bits)}
@@ -139,14 +139,14 @@ def train_cross_modality_hasher(X_train, Y_train, X_validate, Y_validate,
         layers['Y'][-1], Y_input, deterministic=True))
 
     # Extract sample seqs from the validation set (only need to do this once)
-    X_validate, Y_validate = hashing_utils.sample_sequences(
+    X_validate, Y_validate = utils.sample_sequences(
         X_validate, Y_validate, sequence_length)
 
     # Create fixed negative example validation set
     X_validate_n = X_validate[np.random.permutation(X_validate.shape[0])]
     Y_validate_n = Y_validate[np.random.permutation(Y_validate.shape[0])]
     X_validate_shuffle = np.random.permutation(X_output(X_validate).shape[0])
-    data_iterator = hashing_utils.get_next_batch(
+    data_iterator = utils.get_next_batch(
         X_train, Y_train, batch_size, sequence_length, max_iter)
     # We will accumulate the mean train cost over each epoch
     train_cost = 0
@@ -176,9 +176,9 @@ def train_cross_modality_hasher(X_train, Y_train, X_validate, Y_validate,
             # Compute statistics on validation set
             X_val_output = X_output(X_validate)
             Y_val_output = Y_output(Y_validate)
-            in_dist, in_mean, in_std = hashing_utils.statistics(
+            in_dist, in_mean, in_std = utils.statistics(
                 X_val_output > 0, Y_val_output > 0)
-            out_dist, out_mean, out_std = hashing_utils.statistics(
+            out_dist, out_mean, out_std = utils.statistics(
                 X_val_output[X_validate_shuffle] > 0, Y_val_output > 0)
             epoch_result['validate_accuracy'] = in_dist[0]
             epoch_result['validate_in_class_distance_mean'] = in_mean
@@ -186,9 +186,9 @@ def train_cross_modality_hasher(X_train, Y_train, X_validate, Y_validate,
             epoch_result['validate_collisions'] = out_dist[0]
             epoch_result['validate_out_of_class_distance_mean'] = out_mean
             epoch_result['validate_out_of_class_distance_std'] = out_std
-            X_entropy = hashing_utils.hash_entropy(X_val_output > 0)
+            X_entropy = utils.hash_entropy(X_val_output > 0)
             epoch_result['validate_hash_entropy_X'] = X_entropy
-            Y_entropy = hashing_utils.hash_entropy(Y_val_output > 0)
+            Y_entropy = utils.hash_entropy(Y_val_output > 0)
             epoch_result['validate_hash_entropy_Y'] = Y_entropy
             # Objective is negative bhattacharyya distance
             # We should try to maximize it
