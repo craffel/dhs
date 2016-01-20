@@ -18,13 +18,15 @@ def ints_to_vectors(int_sequence):
     '''
     Convert a sequence of integers into bit vector arrays
 
-    :parameters:
-        - int_sequence : np.ndarray, dtype=np.int
-            Sequence of integers
+    Parameters
+    ----------
+    int_sequence : np.ndarray, dtype=np.int
+        Sequence of integers
 
-    :returns:
-        - vectors : np.ndarray, dtype=np.bool
-            Matrix of bit vectors, shape (len(int_sequence), N_BITS)
+    Returns
+    -------
+    vectors : np.ndarray, dtype=np.bool
+        Matrix of bit vectors, shape (len(int_sequence), N_BITS)
     '''
     return np.array([[n >> i & 1 for i in range(N_BITS)]
                      for n in int_sequence])
@@ -34,13 +36,15 @@ def vectors_to_ints(vectors):
     '''
     Turn a matrix of bit vector arrays into a vector of ints
 
-    :parameters:
-        - vectors : np.ndarray
-            Matrix of bit vectors, shape (n_vectors, n_bits)
+    Parameters
+    ----------
+    vectors : np.ndarray
+        Matrix of bit vectors, shape (n_vectors, n_bits)
 
-    :returns:
-        - ints : np.ndarray
-            Vector of ints
+    Returns
+    -------
+    ints : np.ndarray
+        Vector of ints
     '''
     return (vectors*2**(np.arange(vectors.shape[1])*vectors)).sum(axis=1)
 
@@ -54,20 +58,21 @@ def int_dist(x, y, output, thresh, bits_set=bits_set):
     '''
     Compute the pairwise bit-distance matrix of two sequences of integers.
 
-    :parameters:
-        - x : np.ndarray, dtype='uint16'
-            Sequence of integers
-        - y : np.ndarray, dtype='uint16'
-            Sequence of integers
-        - output : np.ndarray, dtype='uint16'
-            Pre-allocated matrix where the pairwise distances will be stored.
-            shape=(x.shape[0], y.shape[0])
-        - thresh : uint16
-            The number of entries in the dist matrix below this threshold will
-            be returned
-        - bits_set : np.ndarray, dtype='uint16'
-            Table where bits_set(x) is the number of 1s in the binary
-            representation of x, where x is an unsigned 16 bit int
+    Parameters
+    ----------
+    x : np.ndarray, dtype='uint16'
+        Sequence of integers
+    y : np.ndarray, dtype='uint16'
+        Sequence of integers
+    output : np.ndarray, dtype='uint16'
+        Pre-allocated matrix where the pairwise distances will be stored.
+        shape=(x.shape[0], y.shape[0])
+    thresh : uint16
+        The number of entries in the dist matrix below this threshold will
+        be returned
+    bits_set : np.ndarray, dtype='uint16'
+        Table where bits_set(x) is the number of 1s in the binary
+        representation of x, where x is an unsigned 16 bit int
     '''
     nx = x.shape[0]
     ny = y.shape[0]
@@ -95,13 +100,14 @@ def dtw_core(D, pen, path_length):
     '''
     Core dynamic programming routine for dynamic time warping.
 
-    :parameters:
-        - D : np.ndarray, dtype='uint16'
-            Distance matrix
-        - pen : int
-            Non-diagonal move penalty
-        - path_length : np.ndarray, dtype='uint16'
-            Pre-allocated traceback matrix
+    Parameters
+    ----------
+    D : np.ndarray, dtype='uint16'
+        Distance matrix
+    pen : int
+        Non-diagonal move penalty
+    path_length : np.ndarray, dtype='uint16'
+        Pre-allocated traceback matrix
     '''
     # At each loop iteration, we are computing lowest cost to D[i + 1, j + 1]
     for i in xrange(D.shape[0] - 1):
@@ -126,17 +132,19 @@ def dtw(distance_matrix, gully, penalty):
     distance matrix.  The score is normalized by the path length.  Assumes an
     integer distance matrix.
 
-    :parameters:
-        - distance_matrix : np.ndarray, dtype='uint16'
-            Distances between two sequences
-        - gully : float
-            Sequences must match up to this porportion of shorter sequence
-        - penalty : int
-            Non-diagonal move penalty
+    Parameters
+    ----------
+    distance_matrix : np.ndarray, dtype='uint16'
+        Distances between two sequences
+    gully : float
+        Sequences must match up to this porportion of shorter sequence
+    penalty : int
+        Non-diagonal move penalty
 
-    :returns:
-        - score : float
-            DTW score of lowest cost path through the distance matrix.
+    Returns
+    -------
+    score : float
+        DTW score of lowest cost path through the distance matrix.
     '''
     # Pre-allocate traceback matrix
     path_length = np.zeros(distance_matrix.shape, distance_matrix.dtype)
@@ -163,27 +171,29 @@ def match_one_sequence(query, sequences, gully, penalty,
     '''
     Match a query sequence to one of the sequences in a list
 
-    :parameters:
-        - query : np.ndarray, dtype='uint16'
-            Query sequence
-        - sequences : list of np.ndarray, dtype='uint16'
-            Sequences to find matches in, sorted by sequence length
-        - gully : float
-            Sequences must match up to this porportion of shorter sequence
-        - penalty : int
-            DTW Non-diagonal move penalty
-        - sequence_indices : iterable or None
-            Iterable of the indices of entries of `sequences` which should be
-            matched against.  If `None`, match against all sequences.
+    Parameters
+    ----------
+    query : np.ndarray, dtype='uint16'
+        Query sequence
+    sequences : list of np.ndarray, dtype='uint16'
+        Sequences to find matches in, sorted by sequence length
+    gully : float
+        Sequences must match up to this porportion of shorter sequence
+    penalty : int
+        DTW Non-diagonal move penalty
+    sequence_indices : iterable or None
+        Iterable of the indices of entries of `sequences` which should be
+        matched against.  If `None`, match against all sequences.
 
-    :returns:
-        - matches : list of int
-            List of match indices
-        - scores : list of float
-            Scores for each match
-        - n_pruned_dist : int
-            Number of sequences pruned because not enough distances were
-            below the current threshold
+    Returns
+    -------
+    matches : list of int
+        List of match indices
+    scores : list of float
+        Scores for each match
+    n_pruned_dist : int
+        Number of sequences pruned because not enough distances were below the
+        current threshold
     '''
     # Pre-allocate match and score lists
     matches = []

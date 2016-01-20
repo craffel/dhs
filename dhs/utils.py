@@ -11,17 +11,19 @@ def sample_sequences(X, Y, sample_size):
     ''' Given lists of sequences, crop out sequences of length sample_size
     from each sequence with a random offset
 
-    :parameters:
-        - X, Y : list of np.ndarray
-            List of X/Y sequence matrices, each with shape (n_channels,
-            n_time_steps, n_features)
-        - sample_size : int
-            The size of the cropped samples from the sequences
+    Parameters
+    ----------
+    X, Y : list of np.ndarray
+        List of X/Y sequence matrices, each with shape (n_channels,
+        n_time_steps, n_features)
+    sample_size : int
+        The size of the cropped samples from the sequences
 
-    :returns:
-        - X_sampled, Y_sampled : np.ndarray
-            X/Y sampled sequences, shape (n_samples, n_channels, n_time_steps,
-            n_features)
+    Returns
+    -------
+    X_sampled, Y_sampled : np.ndarray
+        X/Y sampled sequences, shape (n_samples, n_channels, n_time_steps,
+        n_features)
     '''
     X_sampled = []
     Y_sampled = []
@@ -47,15 +49,18 @@ def random_derangement(n):
     '''
     Permute the numbers up to n such that no number remains in the same place
 
-    :parameters:
-        - n : int
-            Upper bound of numbers to permute from
+    Parameters
+    ----------
+    n : int
+        Upper bound of numbers to permute from
 
-    :returns:
-        - v : np.ndarray, dtype=int
-            Derangement indices
+    Returns
+    -------
+    v : np.ndarray, dtype=int
+        Derangement indices
 
-    :note:
+    Note
+    ----
         From
         http://stackoverflow.com/questions/26554211/numpy-shuffle-with-constraint
     '''
@@ -75,25 +80,27 @@ def random_derangement(n):
 def get_next_batch(X, Y, batch_size, sample_size, n_iter):
     ''' Randomly generates positive and negative example minibatches
 
-    :parameters:
-        - X, Y : list of np.ndarray
-            List of data matrices in each modality
-        - batch_size : int
-            Size of each minibatch to grab
-        - sample_size : int
-            Size of each sampled sequence
-        - n_iter : int
-            Total number of iterations to run
+    Parameters
+    ----------
+    X, Y : list of np.ndarray
+        List of data matrices in each modality
+    batch_size : int
+        Size of each minibatch to grab
+    sample_size : int
+        Size of each sampled sequence
+    n_iter : int
+        Total number of iterations to run
 
-    :returns:
-        - X_p : np.ndarray
-            Positive example minibatch in X modality
-        - Y_p : np.ndarray
-            Positive example minibatch in Y modality
-        - X_n : np.ndarray
-            Negative example minibatch in X modality
-        - Y_n : np.ndarray
-            Negative example minibatch in Y modality
+    Returns
+    -------
+    X_p : np.ndarray
+        Positive example minibatch in X modality
+    Y_p : np.ndarray
+        Positive example minibatch in Y modality
+    X_n : np.ndarray
+        Negative example minibatch in X modality
+    Y_n : np.ndarray
+        Negative example minibatch in Y modality
     '''
     # These are dummy values which will force the sequences to be sampled
     current_batch = 1
@@ -123,13 +130,15 @@ def hash_entropy(X):
     ''' Get the entropy of the histogram of hashes.
     We want this to be close to n_bits.
 
-    :parameters:
-        - X : np.ndarray, shape=(n_examples, n_bits)
-            Boolean data matrix, each column is the hash of an example
+    Parameters
+    ----------
+    X : np.ndarray, shape=(n_examples, n_bits)
+        Boolean data matrix, each column is the hash of an example
 
-    :returns:
-        - hash_entropy : float
-            Entropy of the hash distribution
+    Returns
+    -------
+    hash_entropy : float
+        Entropy of the hash distribution
     '''
     # Convert bit vectors to ints
     bit_values = np.sum(2**np.arange(X.shape[1])*X, axis=1)
@@ -146,19 +155,21 @@ def statistics(X, Y):
     bit errors made.  Assumes that rows of X should be hashed the same as rows
     of Y
 
-    :parameters:
-        - X : np.ndarray, shape=(n_examples, n_features)
-            Data matrix of X modality
-        - Y : np.ndarray, shape=(n_examples, n_features)
-            Codeword matrix of Y modality
+    Parameters
+    ----------
+    X : np.ndarray, shape=(n_examples, n_features)
+        Data matrix of X modality
+    Y : np.ndarray, shape=(n_examples, n_features)
+        Codeword matrix of Y modality
 
-    :returns:
-        - distance_distribution : int
-            Emprical distribution of the codeword distances
-        - mean_distance : float
-            Mean of distances between corresponding codewords
-        - std_distance : float
-            Std of distances between corresponding codewords
+    Returns
+    -------
+    distance_distribution : int
+        Emprical distribution of the codeword distances
+    mean_distance : float
+        Mean of distances between corresponding codewords
+    std_distance : float
+        Std of distances between corresponding codewords
     '''
     points_equal = (X == Y)
     distances = np.logical_not(points_equal).sum(axis=1)
@@ -171,29 +182,31 @@ def build_network(input_shape, input_mean, input_std, num_filters, filter_size,
     '''
     Construct a list of layers of a network given the network's structure.
 
-    :parameters:
-        - input_shape : tuple
-            In what shape will data be supplied to the network?
-        - input_mean : np.ndarray
-            Training set mean, to standardize inputs with.
-        - input_std : np.ndarray
-            Training set standard deviation, to standardize inputs with.
-        - num_filters : list
-            Number of filters in each convolutional layer
-        - filter_size : list
-            Size of each filter in each convolutional layer
-        - ds : list
-            Size of max-pooling window in each pooling layer
-        - hidden_layer_sizes : list
-            Size of each hidden layer
-        - dropout : bool
-            Should dropout be applied between fully-connected layers?
-        - n_bits : int
-            Output dimensionality
+    Parameters
+    ----------
+    input_shape : tuple
+        In what shape will data be supplied to the network?
+    input_mean : np.ndarray
+        Training set mean, to standardize inputs with.
+    input_std : np.ndarray
+        Training set standard deviation, to standardize inputs with.
+    num_filters : list
+        Number of filters in each convolutional layer
+    filter_size : list
+        Size of each filter in each convolutional layer
+    ds : list
+        Size of max-pooling window in each pooling layer
+    hidden_layer_sizes : list
+        Size of each hidden layer
+    dropout : bool
+        Should dropout be applied between fully-connected layers?
+    n_bits : int
+        Output dimensionality
 
-    :returns:
-        - layers : list
-            List of layer instances for this network.
+    Returns
+    -------
+    layers : list
+        List of layer instances for this network.
     '''
     layers = [lasagne.layers.InputLayer(shape=input_shape)]
     layers.append(lasagne.layers.standardize(
@@ -247,11 +260,12 @@ def save_model(param_list, output_file):
     '''
     Write out a pickle file of a hashing network
 
-    :parameters:
-        - param_list : list of np.ndarray
-            A list of values, per layer, of the parameters of the network
-        - output_file : str
-            Path to write the file to
+    Parameters
+    ----------
+    param_list : list of np.ndarray
+        A list of values, per layer, of the parameters of the network
+    output_file : str
+        Path to write the file to
     '''
     with open(output_file, 'wb') as f:
         pickle.dump(param_list, f)
@@ -261,11 +275,12 @@ def load_model(layers, param_file):
     '''
     Load in the parameters from a pkl file into a model
 
-    :parameters:
-        - layers : list
-            A list of layers which define the model
-        - param_file : str
-            Pickle file of model parameters to load
+    Parameters
+    ----------
+    layers : list
+        A list of layers which define the model
+    param_file : str
+        Pickle file of model parameters to load
     '''
     with open(param_file) as f:
         params = pickle.load(f)
