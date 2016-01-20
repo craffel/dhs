@@ -9,65 +9,55 @@ from . import utils
 import collections
 
 
-def train_cross_modality_hasher(X_train, Y_train, X_validate, Y_validate,
-                                num_filters, filter_size, ds,
-                                hidden_layer_sizes, alpha_XY, m_XY, n_bits=16,
-                                dropout=False, learning_rate=.001, momentum=.0,
-                                batch_size=50, sequence_length=100,
-                                epoch_size=100, initial_patience=1000,
-                                improvement_threshold=0.99,
-                                patience_increase=10, max_iter=100000):
-    ''' Utility function for training a siamese net for cross-modality hashing
-    So many parameters.
+def train(X_train, Y_train, X_validate, Y_validate, layers, alpha_XY, m_XY,
+          updates_function, batch_size=50, sequence_length=100,
+          epoch_size=100, initial_patience=1000, improvement_threshold=0.99,
+          patience_increase=10, max_iter=100000):
+    '''
+    Utility function for training a siamese network for (potentially
+    cross-modal) hashing of sequences.
     Assumes X_train[n] should be mapped close to Y_train[m] only when n == m
-    The number of convolutional/pooling layers in inferred from the length of
-    the entries in the num_filters, filter_size, ds dicts (all of which should
-    have the same length).  The number of hidden layers is inferred from the
-    length of the entries of the hidden_layer_sizes dict.  A final dense output
-    layer is also included.
+    The networks for hashing sequences from each modality should be given in
+    the ``layers`` dictionary (see below).
 
-    :parameters:
-        - X_train, Y_train, X_validate, Y_validate : list of np.ndarray
-            List of train/validate sequences from X/Y modality
-            Each shape=(n_channels, n_time_steps, n_features)
-        - num_filters : dict of list-like
-            Number of features in each convolutional layer for X/Y network
-        - filter_size : dict of list-like
-            Number of features in each convolutional layer for X/Y network
-        - ds : dict of list-like
-            Number of features in each convolutional layer for X/Y network
-        - hidden_layer_sizes : dict of list-like
-            Size of each hidden layer in X/Y network
-        - alpha_XY : float
-            Scaling parameter for cross-modality negative example cost
-        - m_XY : int
-            Cross-modality negative example threshold
-        - n_bits : int
-            Number of bits in the output representation
-        - dropout : bool
-            Whether to use dropout between the hidden layers
-        - learning_rate : float
-            SGD learning rate
-        - momentum : float
-            SGD momentum
-        - batch_size : int
-            Mini-batch size
-        - sequence_length : int
-            Size of extracted sequences
-        - epoch_size : int
-            Number of mini-batches per epoch
-        - initial_patience : int
-            Always train on at least this many batches
-        - improvement_threshold : float
-            Validation cost must decrease by this factor to increase patience
-        - patience_increase : int
-            How many more epochs should we wait when we increase patience
-        - max_iter : int
-            Maximum number of batches to train on
+    Parameters
+    ----------
+    X_train, Y_train, X_validate, Y_validate : list of np.ndarray
+        List of train/validate sequences from X/Y modality
+        Each shape=(n_channels, n_time_steps, n_features)
+    layers : dict of list of lasagne.layers.Layer
+        This should be a dict with two keys, ``'X'`` and ``'Y'``, with each key
+        mapping to a list of ``lasagne.layers.Layer`` instance corresponding to
+        the layers in each network.
+    alpha_XY : float
+        Scaling parameter for cross-modality negative example cost
+    m_XY : int
+        Cross-modality negative example threshold
+    updates_function : function
+        Function for computing updates, probably from ``lasagne.updates``.
+        Should take two arguments, a Theano tensor variable and a list of
+        shared variables, and should return a dictionary of updates for those
+        parameters (all other arguments, such as learning rate, should be
+        factored out).
+    batch_size : int
+        Mini-batch size
+    sequence_length : int
+        Size of extracted sequences
+    epoch_size : int
+        Number of mini-batches per epoch
+    initial_patience : int
+        Always train on at least this many batches
+    improvement_threshold : float
+        Validation cost must decrease by this factor to increase patience
+    patience_increase : int
+        How many more epochs should we wait when we increase patience
+    max_iter : int
+        Maximum number of batches to train on
 
-    :returns:
-        - epoch : iterator
-            Results for each epoch are yielded
+    Returns
+    -------
+    epoch : iterator
+        Results for each epoch are yielded
     '''
     # First neural net, for X modality
     X_p_input = T.tensor4('X_p_input')
@@ -78,17 +68,6 @@ def train_cross_modality_hasher(X_train, Y_train, X_validate, Y_validate,
     Y_p_input = T.tensor4('Y_p_input')
     Y_n_input = T.tensor4('Y_n_input')
     Y_input = T.tensor4('Y_input')
-
-    # Create networks
-    layers = {
-        'X': utils.build_network(
-            (None, X_train[0].shape[0], sequence_length, X_train[0].shape[2]),
-            num_filters['X'], filter_size['X'], ds['X'],
-            hidden_layer_sizes['X'], dropout, n_bits),
-        'Y': utils.build_network(
-            (None, Y_train[0].shape[0], sequence_length, Y_train[0].shape[2]),
-            num_filters['Y'], filter_size['Y'], ds['Y'],
-            hidden_layer_sizes['Y'], dropout, n_bits)}
 
     # Compute \sum max(0, m - ||a - b||_2)^2
     def hinge_cost(m, a, b):
@@ -114,11 +93,10 @@ def train_cross_modality_hasher(X_train, Y_train, X_validate, Y_validate,
         return cost
 
     # Combine all parameters from both networks
-    params = (lasagne.layers.get_all_params(layers['X'][-1])
-              + lasagne.layers.get_all_params(layers['Y'][-1]))
+    params = (lasagne.layers.get_all_params(layers['X'][-1], trainable=True)
+              + lasagne.layers.get_all_params(layers['Y'][-1], trainable=True))
     # Compute RMSProp gradient descent updates
-    updates = lasagne.updates.rmsprop(hasher_cost(False), params,
-                                      learning_rate, momentum)
+    updates = updates_function(hasher_cost(False), params)
     # Function for training the network
     train = theano.function(
         [X_p_input, X_n_input, Y_p_input, Y_n_input], hasher_cost(False),
@@ -190,14 +168,13 @@ def train_cross_modality_hasher(X_train, Y_train, X_validate, Y_validate,
             epoch_result['validate_hash_entropy_X'] = X_entropy
             Y_entropy = utils.hash_entropy(Y_val_output > 0)
             epoch_result['validate_hash_entropy_Y'] = Y_entropy
-            # Objective is negative bhattacharyya distance
-            # We should try to maximize it
+            # Objective is bhattacharyya distance
             # When either is small, it's not really valid
             if out_dist[0] > 1e-5 and in_dist[0] > 1e-2:
-                bhatt_coeff = -np.sum(np.sqrt(in_dist*out_dist))
+                bhatt_coeff = np.sum(np.sqrt(in_dist*out_dist))
                 epoch_result['validate_objective'] = bhatt_coeff
             else:
-                epoch_result['validate_objective'] = -1
+                epoch_result['validate_objective'] = 1
 
             if epoch_result['validate_cost'] < current_validate_cost:
                 patience_cost = improvement_threshold*current_validate_cost
@@ -206,9 +183,7 @@ def train_cross_modality_hasher(X_train, Y_train, X_validate, Y_validate,
                 current_validate_cost = epoch_result['validate_cost']
 
             # Yield scores and statistics for this epoch
-            X_params = lasagne.layers.get_all_param_values(layers['X'][-1])
-            Y_params = lasagne.layers.get_all_param_values(layers['Y'][-1])
-            yield (epoch_result, X_params, Y_params)
+            yield epoch_result
 
             if n > patience:
                 break

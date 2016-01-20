@@ -3,76 +3,8 @@ Utilities for cross-modality hashing experiments, including data loading and
 statistics
 '''
 import numpy as np
-import theano
-import scipy.spatial
 import pickle
 import lasagne
-import collections
-
-
-def standardize(X):
-    ''' Return column vectors to standardize X, via (X - X_mean)/X_std
-
-    :parameters:
-        - X : np.ndarray, shape=(n_filters, n_examples, n_features)
-            Data matrix
-
-    :returns:
-        - X_mean : np.ndarray, shape=(n_filters, 1, n_features)
-            Mean column vector
-        - X_std : np.ndarray, shape=(n_filters, 1, n_features)
-            Standard deviation column vector
-    '''
-    std = np.std(X, axis=1)
-    return (np.mean(X, axis=1).reshape(X.shape[0], 1, X.shape[2]),
-            (std + (std == 0)).reshape(X.shape[0], 1, X.shape[2]))
-
-
-def load_data(train_list, valid_list):
-    '''
-    Load in dataset given lists of files in each split.
-    Also standardizes (using train mean/std) the data.
-    Each file should be a .npz file with a key 'X' for data in the X modality
-    and 'Y' for data in the Y modality.
-
-    :parameters:
-        - train_list : list of str
-            List of paths to files in the training set.
-        - valid_list : list of str
-            List of paths to files in the validation set.
-
-    :returns:
-        - X_train : list
-            List of np.ndarrays of X modality features in training set
-        - Y_train : list
-            List of np.ndarrays of Y modality features in training set
-        - X_valid : list
-            List of np.ndarrays of X modality features in validation set
-        - Y_valid : list
-            List of np.ndarrays of Y modality features in validation set
-    '''
-    # We'll use dicts where key is the data subset, so we can iterate
-    X = collections.defaultdict(list)
-    Y = collections.defaultdict(list)
-    for file_list, key in zip([train_list, valid_list],
-                              ['train', 'valid']):
-        # Load in all files
-        for filename in file_list:
-            data = np.load(filename)
-            # Shingle and convert to floatX with correct column order
-            X[key].append(np.array(
-                data['X'], dtype=theano.config.floatX, order='C'))
-            Y[key].append(np.array(
-                data['Y'], dtype=theano.config.floatX, order='C'))
-        # Get mean/std for training set
-        if key == 'train':
-            X_mean, X_std = standardize(np.concatenate(X[key], axis=1))
-            Y_mean, Y_std = standardize(np.concatenate(Y[key], axis=1))
-        # Use training set mean/std to standardize
-        X[key] = [(x - X_mean)/X_std for x in X[key]]
-        Y[key] = [(y - Y_mean)/Y_std for y in Y[key]]
-
-    return X['train'], Y['train'], X['valid'], Y['valid']
 
 
 def sample_sequences(X, Y, sample_size):
@@ -234,51 +166,24 @@ def statistics(X, Y):
     return counts/float(X.shape[0]), np.mean(distances), np.std(distances)
 
 
-def mean_reciprocal_rank(X, Y, indices):
-    ''' Computes the mean reciprocal rank of the correct match
-    Assumes that X[n] should be closest to Y[n]
-    Uses hamming distance
-
-    :parameters:
-        - X : np.ndarray, shape=(n_examples, n_features)
-            Data matrix in X modality
-        - Y : np.ndarray, shape=(n_examples, n_features)
-            Data matrix in Y modality
-        - indices : np.ndarray
-            Denotes which rows to use in MRR calculation
-
-    :returns:
-        - mrr_pessimist : float
-            Mean reciprocal rank, where ties are resolved pessimistically
-            That is, rank = # of distances <= dist(X[:, n], Y[:, n])
-        - mrr_optimist : float
-            Mean reciprocal rank, where ties are resolved optimistically
-            That is, rank = # of distances < dist(X[:, n], Y[:, n]) + 1
-    '''
-    # Compute distances between each codeword and each other codeword
-    distance_matrix = scipy.spatial.distance.cdist(X, Y, metric='hamming')
-    # Rank is the number of distances smaller than the correct distance, as
-    # specified by the indices arg
-    n_le = distance_matrix.T <= distance_matrix[np.arange(X.shape[0]), indices]
-    n_lt = distance_matrix.T < distance_matrix[np.arange(X.shape[0]), indices]
-    return (np.mean(1./n_le.sum(axis=0)),
-            np.mean(1./(n_lt.sum(axis=0) + 1)))
-
-
-def build_network(input_shape, num_filters, filter_size, ds,
-                  hidden_layer_sizes, dropout, n_bits):
+def build_network(input_shape, input_mean, input_std, num_filters, filter_size,
+                  ds, hidden_layer_sizes, dropout, n_bits):
     '''
     Construct a list of layers of a network given the network's structure.
 
     :parameters:
         - input_shape : tuple
             In what shape will data be supplied to the network?
+        - input_mean : np.ndarray
+            Training set mean, to standardize inputs with.
+        - input_std : np.ndarray
+            Training set standard deviation, to standardize inputs with.
         - num_filters : list
-            Number of features in each convolutional layer
+            Number of filters in each convolutional layer
         - filter_size : list
-            Number of features in each convolutional layer
-        - ds : dict of list
-            Number of features in each convolutional layer
+            Size of each filter in each convolutional layer
+        - ds : list
+            Size of max-pooling window in each pooling layer
         - hidden_layer_sizes : list
             Size of each hidden layer
         - dropout : bool
@@ -291,6 +196,8 @@ def build_network(input_shape, num_filters, filter_size, ds,
             List of layer instances for this network.
     '''
     layers = [lasagne.layers.InputLayer(shape=input_shape)]
+    layers.append(lasagne.layers.standardize(
+        layers[-1], input_mean, input_std, shared_axes=(0, 2)))
     # Add each convolutional and pooling layer recursively
     for n in xrange(len(num_filters)):
         # In order to get the same shape out from each convolutional layer, we
