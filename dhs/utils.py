@@ -140,10 +140,13 @@ def hash_entropy(X):
     '''
     # Convert bit vectors to ints
     bit_values = np.sum(2**np.arange(X.shape[1])*X, axis=1)
-    # Count the number of occurences of each int
-    counts = np.bincount(bit_values)
+    # Construct sparse bincount vector
+    bins = dict((v, n) for n, v in enumerate(np.unique(bit_values)))
+    counts = np.zeros(len(bins))
+    for value in bit_values:
+        counts[bins[value]] += 1
     # Normalize to form a probability distribution
-    counts = counts/float(counts.sum())
+    counts /= counts.sum()
     # Compute entropy
     return -np.sum(counts*np.log2(counts + 1e-100))
 
