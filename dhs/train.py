@@ -9,9 +9,10 @@ from . import utils
 import collections
 
 
-def train(X_train, Y_train, X_validate, Y_validate, layers, alpha_XY, m_XY,
-          updates_function, batch_size=50, sequence_length=100,
-          epoch_size=100, initial_patience=1000, improvement_threshold=0.99,
+def train(X_train, Y_train, X_validate, Y_validate, layers,
+          negative_importance, negative_threshold, updates_function,
+          batch_size=50, sequence_length=100, epoch_size=100,
+          initial_patience=1000, improvement_threshold=0.99,
           patience_increase=10, max_iter=100000):
     '''
     Utility function for training a siamese network for (potentially
@@ -33,9 +34,9 @@ def train(X_train, Y_train, X_validate, Y_validate, layers, alpha_XY, m_XY,
         called with the provided data arrays (``X_train``, etc.), that the
         output dimensionality of both networks should be the same, and that the
         output nonlinearity is tanh.
-    alpha_XY : float
+    negative_importance : float
         Scaling parameter for cross-modality negative example cost
-    m_XY : int
+    negative_threshold : int
         Cross-modality negative example threshold
     updates_function : function
         Function for computing updates, probably from ``lasagne.updates``.
@@ -91,7 +92,8 @@ def train(X_train, Y_train, X_validate, Y_validate, layers, alpha_XY, m_XY,
         # Unthresholded, unscaled cost of positive examples across modalities
         cost_p = T.mean((X_p_output - Y_p_output)**2)
         # Thresholded, scaled cost of cross-modality negative examples
-        cost_n = alpha_XY*hinge_cost(m_XY, X_n_output, Y_n_output)
+        cost_n = negative_importance*hinge_cost(
+            negative_threshold, X_n_output, Y_n_output)
         # Sum positive and negative costs for overall cost
         cost = cost_p + cost_n
         return cost
