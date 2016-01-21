@@ -28,7 +28,11 @@ def train(X_train, Y_train, X_validate, Y_validate, layers, alpha_XY, m_XY,
     layers : dict of list of lasagne.layers.Layer
         This should be a dict with two keys, ``'X'`` and ``'Y'``, with each key
         mapping to a list of ``lasagne.layers.Layer`` instance corresponding to
-        the layers in each network.
+        the layers in each network.  The only constraints are that the input
+        shape should match the shape produced by ``sample_sequences`` when it's
+        called with the provided data arrays (``X_train``, etc.), that the
+        output dimensionality of both networks should be the same, and that the
+        output nonlinearity is tanh.
     alpha_XY : float
         Scaling parameter for cross-modality negative example cost
     m_XY : int
