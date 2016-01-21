@@ -148,8 +148,8 @@ def train(X_train, Y_train, X_validate, Y_validate, layers, alpha_XY, m_XY,
             # Reset training cost mean accumulation
             train_cost = 0
             # Also compute validate cost
-            epoch_result['validate_cost'] = cost(
-                X_validate, X_validate_n, Y_validate, Y_validate_n)
+            epoch_result['validate_cost'] = float(cost(
+                X_validate, X_validate_n, Y_validate, Y_validate_n))
 
             # Compute statistics on validation set
             X_val_output = X_output(X_validate)
