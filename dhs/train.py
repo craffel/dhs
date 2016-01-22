@@ -10,8 +10,8 @@ import collections
 
 
 def train(X_train, Y_train, X_validate, Y_validate, layers,
-          negative_importance, negative_threshold, updates_function,
-          batch_size=50, sequence_length=100, epoch_size=100,
+          negative_importance, negative_threshold, entropy_importance,
+          updates_function, batch_size=50, sequence_length=100, epoch_size=100,
           initial_patience=1000, improvement_threshold=0.99,
           patience_increase=10, max_iter=100000):
     '''
@@ -38,6 +38,8 @@ def train(X_train, Y_train, X_validate, Y_validate, layers,
         Scaling parameter for cross-modality negative example cost
     negative_threshold : int
         Cross-modality negative example threshold
+    entropy_importance : float
+        Scaling parameter for hash entropy encouraging term
     updates_function : function
         Function for computing updates, probably from ``lasagne.updates``.
         Should take two arguments, a Theano tensor variable and a list of
@@ -94,8 +96,11 @@ def train(X_train, Y_train, X_validate, Y_validate, layers,
         # Thresholded, scaled cost of cross-modality negative examples
         cost_n = negative_importance*hinge_cost(
             negative_threshold, X_n_output, Y_n_output)
+        # Cost to encourage each output unit to vary
+        cost_e = entropy_importance*(
+            T.mean(X_p_output**2) + T.mean(Y_p_output**2))
         # Sum positive and negative costs for overall cost
-        cost = cost_p + cost_n
+        cost = cost_p + cost_n + cost_e
         return cost
 
     # Combine all parameters from both networks
