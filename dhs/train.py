@@ -180,12 +180,8 @@ def train(X_train, Y_train, X_validate, Y_validate, layers,
             Y_entropy = utils.hash_entropy(Y_val_output > 0)
             epoch_result['validate_hash_entropy_Y'] = Y_entropy
             # Objective is bhattacharyya distance
-            # When either is small, it's not really valid
-            if out_dist[0] > 1e-5 and in_dist[0] > 1e-2:
-                bhatt_coeff = np.sum(np.sqrt(in_dist*out_dist))
-                epoch_result['validate_objective'] = bhatt_coeff
-            else:
-                epoch_result['validate_objective'] = 1
+            bhatt_coeff = np.sum(np.sqrt(in_dist*out_dist))
+            epoch_result['validate_objective'] = bhatt_coeff
 
             if epoch_result['validate_cost'] < current_validate_cost:
                 patience_cost = improvement_threshold*current_validate_cost
