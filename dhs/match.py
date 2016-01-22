@@ -29,7 +29,7 @@ def ints_to_vectors(int_sequence):
         Matrix of bit vectors, shape (len(int_sequence), N_BITS)
     '''
     return np.array([[n >> i & 1 for i in range(N_BITS)]
-                     for n in int_sequence])
+                     for n in int_sequence], np.bool)
 
 
 def vectors_to_ints(vectors):
@@ -38,12 +38,12 @@ def vectors_to_ints(vectors):
 
     Parameters
     ----------
-    vectors : np.ndarray
+    vectors : np.ndarray, dtype=np.bool
         Matrix of bit vectors, shape (n_vectors, n_bits)
 
     Returns
     -------
-    ints : np.ndarray
+    ints : np.ndarray, dtype=np.int
         Vector of ints
     '''
     return (vectors*2**(np.arange(vectors.shape[1])*vectors)).sum(axis=1)
