@@ -70,8 +70,8 @@ def int_dist(x, y, output, thresh, bits_set=bits_set):
         Pre-allocated matrix where the pairwise distances will be stored.
         shape=(x.shape[0], y.shape[0])
     thresh : uint16
-        The number of entries in the dist matrix below this threshold will
-        be returned
+        The number of entries in the dist matrix less than or equal to this
+        threshold will be returned
     bits_set : np.ndarray, dtype='uint16'
         Table where bits_set(x) is the number of 1s in the binary
         representation of x, where x is an unsigned 16 bit int
@@ -88,7 +88,8 @@ def int_dist(x, y, output, thresh, bits_set=bits_set):
             # the same.  Retrieving the entry in bits_set will then count
             # the number of entries in x[m] and y[n] which are the same.
             output[m, n] = bits_set[x[m] ^ y[n]]
-            n_below += (output[m, n] < thresh)
+            # Accumulate the number of distances less than or equal to thresh
+            n_below += (output[m, n] <= thresh)
     return n_below
 
 
@@ -201,8 +202,13 @@ def match_one_sequence(query, sequences, gully, penalty,
     matches = []
     scores = []
     n_pruned_dist = 0
-    # Keep track of the best DTW score so far
-    best_so_far = INT_MAX
+    # Keep track of the best DTW score so far; we want the starting value to be
+    # sufficiently large that the DTW cost will for sure be computed for the
+    # first sequence.  The DTW cost is essentially the mean distance between
+    # sequence entries across the lowest-cost path.  The bitwise distance is
+    # bounded by the number of bits.  So, for 256-bit integers, the largest
+    # distance may be 2**8.  I doubt anyone will use larger integers than that.
+    best_so_far = 2**8
     # Default: Check all sequences
     if sequence_indices is None:
         sequence_indices = xrange(len(sequences))
@@ -214,15 +220,18 @@ def match_one_sequence(query, sequences, gully, penalty,
         # in the distance matrix
         n_below = int_dist(query, sequences[n], distance_matrix,
                            int(np.ceil(best_so_far)), bits_set)
-
-        # If the number of entries below the ceil(best_cost_so_far) is greater
+        # If the number of entries below the ceil(best_cost_so_far) is less
         # than the min path length, don't bother computing DTW
         if n_below < min(query.shape[0], sequences[n].shape[0]):
-            n_pruned_dist += 0
+            n_pruned_dist += 1
             score = np.inf
         else:
             # Compute DTW distance
             score = dtw(distance_matrix, gully, penalty)
+            # Update the best score found so far
+            if score < best_so_far:
+                best_so_far = score
+
         # Store the score/match (even if it's not the best)
         matches.append(n)
         scores.append(score)
