@@ -51,33 +51,34 @@ def vectors_to_ints(vectors):
     return (vectors*2**(np.arange(vectors.shape[1])*vectors)).sum(axis=1)
 
 
-@numba.jit('u4(u2[:], u2[:], u2[:, :], u2, u2[:])',
-           locals={'m': numba.uint16,
-                   'n': numba.uint16,
-                   'tot': numba.uint32},
-           nopython=True)
-def int_dist(x, y, output, thresh, bits_set=bits_set):
+@numba.jit(nopython=True)
+def int_dist(x, y, thresh, bits_set=bits_set):
     '''
     Compute the pairwise bit-distance matrix of two sequences of integers.
 
     Parameters
     ----------
-    x : np.ndarray, dtype='uint16'
+    x : np.ndarray, dtype=int
         Sequence of integers
-    y : np.ndarray, dtype='uint16'
+    y : np.ndarray, dtype=int
         Sequence of integers
-    output : np.ndarray, dtype='uint16'
-        Pre-allocated matrix where the pairwise distances will be stored.
-        shape=(x.shape[0], y.shape[0])
-    thresh : uint16
+    thresh : int
         The number of entries in the dist matrix less than or equal to this
         threshold will be returned
-    bits_set : np.ndarray, dtype='uint16'
+    bits_set : np.ndarray, dtype=int
         Table where bits_set(x) is the number of 1s in the binary
         representation of x, where x is an unsigned 16 bit int
+
+    Returns
+    -------
+    distance_matrix : np.array, dtype=int
+        Pairwise distance matrix of the entries in x and y
+    n_below : int
+        The number of entries in the distance matrix below `threshold`
     '''
     nx = x.shape[0]
     ny = y.shape[0]
+    output = np.zeros((nx, ny), dtype=np.int32)
     # Keep track of the total number of distances below the threshold
     n_below = 0
     # Populate the distance matrix
@@ -90,28 +91,38 @@ def int_dist(x, y, output, thresh, bits_set=bits_set):
             output[m, n] = bits_set[x[m] ^ y[n]]
             # Accumulate the number of distances less than or equal to thresh
             n_below += (output[m, n] <= thresh)
-    return n_below
+    return output, n_below
 
 
-@numba.jit(['void(u2[:, :], u2, u2[:, :])',
-            'void(f8[:, :], f8, f8[:, :])',
-            'void(f4[:, :], f4, f4[:, :])'],
-           locals={'i': numba.uint16,
-                   'j': numba.uint16},
-           nopython=True)
-def dtw_core(D, pen, path_length):
+@numba.jit(nopython=True)
+def dtw(D, gully, pen):
     '''
-    Core dynamic programming routine for dynamic time warping.
+    Compute the dynamic time warping distance between two sequences given a
+    distance matrix.  The score is normalized by the path length.  Assumes an
+    integer distance matrix.
 
     Parameters
     ----------
-    D : np.ndarray, dtype='uint16'
-        Distance matrix
+    D : np.ndarray, dtype=int
+        Distances between two sequences
+    gully : float
+        Sequences must match up to this porportion of shorter sequence
     pen : int
         Non-diagonal move penalty
-    path_length : np.ndarray, dtype='uint16'
-        Pre-allocated traceback matrix
+
+    Returns
+    -------
+    score : float
+        DTW score of lowest cost path through the distance matrix, normalized
+        by the path length.
+
+    Notes
+    -----
+    `D` is modified in place.
     '''
+    # Pre-allocate path length matrix
+    path_length = np.zeros(D.shape, dtype=np.uint16)
+
     # At each loop iteration, we are computing lowest cost to D[i + 1, j + 1]
     for i in xrange(D.shape[0] - 1):
         for j in xrange(D.shape[1] - 1):
@@ -128,43 +139,18 @@ def dtw_core(D, pen, path_length):
                 path_length[i + 1, j + 1] += path_length[i + 1, j] + 1
                 D[i + 1, j + 1] += D[i + 1, j] + pen
 
-
-def dtw(distance_matrix, gully, penalty):
-    '''
-    Compute the dynamic time warping distance between two sequences given a
-    distance matrix.  The score is normalized by the path length.  Assumes an
-    integer distance matrix.
-
-    Parameters
-    ----------
-    distance_matrix : np.ndarray, dtype='uint16'
-        Distances between two sequences
-    gully : float
-        Sequences must match up to this porportion of shorter sequence
-    penalty : int
-        Non-diagonal move penalty
-
-    Returns
-    -------
-    score : float
-        DTW score of lowest cost path through the distance matrix.
-    '''
-    # Pre-allocate traceback matrix
-    path_length = np.zeros(distance_matrix.shape, distance_matrix.dtype)
-    # Populate distance matrix with lowest cost path
-    dtw_core(distance_matrix, penalty, path_length)
     # Traceback from lowest-cost point on bottom or right edge
-    gully = int(gully*min(distance_matrix.shape[0], distance_matrix.shape[1]))
-    i = np.argmin(distance_matrix[gully:, -1]) + gully
-    j = np.argmin(distance_matrix[-1, gully:]) + gully
+    gully = int(gully*min(D.shape[0], D.shape[1]))
+    i = np.argmin(D[gully:, -1]) + gully
+    j = np.argmin(D[-1, gully:]) + gully
 
-    if distance_matrix[-1, j] > distance_matrix[i, -1]:
-        j = distance_matrix.shape[1] - 1
+    if D[-1, j] > D[i, -1]:
+        j = D.shape[1] - 1
     else:
-        i = distance_matrix.shape[0] - 1
+        i = D.shape[0] - 1
 
     # Score is the final score of the best path
-    score = distance_matrix[i, j]/float(path_length[i, j])
+    score = D[i, j]/float(path_length[i, j])
 
     return score
 
@@ -213,13 +199,10 @@ def match_one_sequence(query, sequences, gully, penalty,
     if sequence_indices is None:
         sequence_indices = xrange(len(sequences))
     for n in sequence_indices:
-        # Compute distance matrix
-        distance_matrix = np.empty(
-            (query.shape[0], sequences[n].shape[0]), dtype=np.uint16)
-        # int_dist returns the numbet of entries below the supplied thresold
-        # in the distance matrix
-        n_below = int_dist(query, sequences[n], distance_matrix,
-                           int(np.ceil(best_so_far)), bits_set)
+        # int_dist returns the distance matrix and the number of entries below
+        # the supplied threshold in the distance matrix
+        distance_matrix, n_below = int_dist(
+            query, sequences[n], int(np.ceil(best_so_far)), bits_set)
         # If the number of entries below the ceil(best_cost_so_far) is less
         # than the min path length, don't bother computing DTW
         if n_below < min(query.shape[0], sequences[n].shape[0]):
