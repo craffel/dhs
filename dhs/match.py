@@ -121,22 +121,22 @@ def dtw(D, gully, pen):
     `D` is modified in place.
     '''
     # Pre-allocate path length matrix
-    path_length = np.zeros(D.shape, dtype=np.uint16)
+    path_length = np.ones(D.shape, dtype=np.uint16)
 
     # At each loop iteration, we are computing lowest cost to D[i + 1, j + 1]
     for i in xrange(D.shape[0] - 1):
         for j in xrange(D.shape[1] - 1):
             # Diagonal move (which has no penalty) is lowest
             if D[i, j] <= D[i, j + 1] + pen and D[i, j] <= D[i + 1, j] + pen:
-                path_length[i + 1, j + 1] += path_length[i, j] + 1
+                path_length[i + 1, j + 1] += path_length[i, j]
                 D[i + 1, j + 1] += D[i, j]
             # Horizontal move (has penalty)
             elif D[i, j + 1] <= D[i + 1, j] and D[i, j + 1] + pen <= D[i, j]:
-                path_length[i + 1, j + 1] += path_length[i, j + 1] + 1
+                path_length[i + 1, j + 1] += path_length[i, j + 1]
                 D[i + 1, j + 1] += D[i, j + 1] + pen
             # Vertical move (has penalty)
             elif D[i + 1, j] <= D[i, j + 1] and D[i + 1, j] + pen <= D[i, j]:
-                path_length[i + 1, j + 1] += path_length[i + 1, j] + 1
+                path_length[i + 1, j + 1] += path_length[i + 1, j]
                 D[i + 1, j + 1] += D[i + 1, j] + pen
 
     # Traceback from lowest-cost point on bottom or right edge
