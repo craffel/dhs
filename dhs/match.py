@@ -3,15 +3,7 @@ Functions for matching hash sequences quickly
 '''
 import numpy as np
 import numba
-
-N_BITS = 16
-INT_MAX = 2**(N_BITS - 1) + 1
-
-# Construct "bits-set-table"
-bits_set = np.zeros(2**N_BITS, dtype=np.uint16)
-
-for i in xrange(2**N_BITS):
-    bits_set[i] = (i & 1) + bits_set[i/2]
+from .int_dist import int_dist
 
 
 def ints_to_vectors(int_sequence, n_bits):
@@ -49,49 +41,6 @@ def vectors_to_ints(vectors):
         Vector of ints
     '''
     return (vectors*2**(np.arange(vectors.shape[1])*vectors)).sum(axis=1)
-
-
-@numba.jit(nopython=True)
-def int_dist(x, y, thresh, bits_set=bits_set):
-    '''
-    Compute the pairwise bit-distance matrix of two sequences of integers.
-
-    Parameters
-    ----------
-    x : np.ndarray, dtype=int
-        Sequence of integers
-    y : np.ndarray, dtype=int
-        Sequence of integers
-    thresh : int
-        The number of entries in the dist matrix less than or equal to this
-        threshold will be returned
-    bits_set : np.ndarray, dtype=int
-        Table where bits_set(x) is the number of 1s in the binary
-        representation of x, where x is an unsigned 16 bit int
-
-    Returns
-    -------
-    distance_matrix : np.array, dtype=int
-        Pairwise distance matrix of the entries in x and y
-    n_below : int
-        The number of entries in the distance matrix below `threshold`
-    '''
-    nx = x.shape[0]
-    ny = y.shape[0]
-    output = np.zeros((nx, ny), dtype=np.int32)
-    # Keep track of the total number of distances below the threshold
-    n_below = 0
-    # Populate the distance matrix
-    for m in xrange(nx):
-        for n in xrange(ny):
-            # XORing ^ x[m] and y[n] will produce a 16-bit int where the i'th
-            # bit is 1 when the i'th bit of x[m] and the i'th bit of y[n] are
-            # the same.  Retrieving the entry in bits_set will then count
-            # the number of entries in x[m] and y[n] which are the same.
-            output[m, n] = bits_set[x[m] ^ y[n]]
-            # Accumulate the number of distances less than or equal to thresh
-            n_below += (output[m, n] <= thresh)
-    return output, n_below
 
 
 @numba.jit(nopython=True)
@@ -202,7 +151,7 @@ def match_one_sequence(query, sequences, gully, penalty,
         # int_dist returns the distance matrix and the number of entries below
         # the supplied threshold in the distance matrix
         distance_matrix, n_below = int_dist(
-            query, sequences[n], int(np.ceil(best_so_far)), bits_set)
+            query, sequences[n], int(np.ceil(best_so_far)))
         # If the number of entries below the ceil(best_cost_so_far) is less
         # than the min path length, don't bother computing DTW
         if n_below < min(query.shape[0], sequences[n].shape[0]):

@@ -1,4 +1,14 @@
 from setuptools import setup
+import numpy.distutils
+from distutils.extension import Extension
+from Cython.Distutils import build_ext
+import os
+
+ext_modules = [Extension(
+    "dhs.int_dist", [os.path.join("dhs", "int_dist.pyx")],
+    include_dirs=numpy.distutils.misc_util.get_numpy_include_dirs(),
+    extra_compile_args=['-mpopcnt'])]
+
 
 setup(
     name='dhs',
@@ -27,4 +37,6 @@ setup(
         'numba',
         'scipy'
     ],
+    cmdclass={'build_ext': build_ext},
+    ext_modules=ext_modules,
 )
