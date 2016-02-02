@@ -104,7 +104,7 @@ def dtw(D, gully, pen):
     return score
 
 
-def match_one_sequence(query, sequences, gully, penalty,
+def match_one_sequence(query, sequences, gully, penalty, prune=True,
                        sequence_indices=None):
     '''
     Match a query sequence to one of the sequences in a list
@@ -119,6 +119,10 @@ def match_one_sequence(query, sequences, gully, penalty,
         Sequences must match up to this porportion of shorter sequence
     penalty : int
         DTW Non-diagonal move penalty
+    prune : bool
+        Whether to skip DTW score calculation when the number of entries in the
+        distance matrix indicates that it is impossible to beat the current
+        best score
     sequence_indices : iterable or None
         Iterable of the indices of entries of `sequences` which should be
         matched against.  If `None`, match against all sequences.
@@ -154,7 +158,7 @@ def match_one_sequence(query, sequences, gully, penalty,
             query, sequences[n], int(np.ceil(best_so_far)))
         # If the number of entries below the ceil(best_cost_so_far) is less
         # than the min path length, don't bother computing DTW
-        if n_below < min(query.shape[0], sequences[n].shape[0]):
+        if prune and n_below < min(query.shape[0], sequences[n].shape[0]):
             n_pruned_dist += 1
             score = np.inf
         else:
