@@ -9,11 +9,10 @@ from . import utils
 import collections
 
 
-def train(X_train, Y_train, X_validate, Y_validate, layers,
-          negative_importance, negative_threshold, entropy_importance,
-          updates_function, batch_size=50, sequence_length=100, epoch_size=100,
-          initial_patience=1000, improvement_threshold=0.99,
-          patience_increase=10, max_iter=100000):
+def train(data, layers, negative_importance, negative_threshold,
+          entropy_importance, updates_function, batch_size=50,
+          sequence_length=100, epoch_size=100, initial_patience=1000,
+          improvement_threshold=0.99, patience_increase=10, max_iter=100000):
     '''
     Utility function for training a siamese network for (potentially
     cross-modal) hashing of sequences.
@@ -23,17 +22,19 @@ def train(X_train, Y_train, X_validate, Y_validate, layers,
 
     Parameters
     ----------
-    X_train, Y_train, X_validate, Y_validate : list of np.ndarray
-        List of train/validate sequences from X/Y modality
-        Each shape=(n_channels, n_time_steps, n_features)
+    data : dict of dict of list of np.ndarray
+        Dict with keys ``'X'`` and ``'Y'``, corresponding to each modality,
+        with each key mapping to a dict with keys ``'train'`` and
+        ``'validate'``, each of which containing a list of np.ndarrays of shape
+        ``(n_filters, n_time_steps, n_features)``.
     layers : dict of list of lasagne.layers.Layer
         This should be a dict with two keys, ``'X'`` and ``'Y'``, with each key
         mapping to a list of ``lasagne.layers.Layer`` instance corresponding to
         the layers in each network.  The only constraints are that the input
         shape should match the shape produced by ``sample_sequences`` when it's
-        called with the provided data arrays (``X_train``, etc.), that the
-        output dimensionality of both networks should be the same, and that the
-        output nonlinearity is tanh.
+        called with the provided data arrays (``data['X']['train']``, etc.),
+        that the output dimensionality of both networks should be the same, and
+        that the output nonlinearity is tanh.
     negative_importance : float
         Scaling parameter for cross-modality negative example cost
     negative_threshold : int
@@ -129,14 +130,15 @@ def train(X_train, Y_train, X_validate, Y_validate, layers,
 
     # Extract sample seqs from the validation set (only need to do this once)
     X_validate, Y_validate = utils.sample_sequences(
-        X_validate, Y_validate, sequence_length)
+        data['X']['validate'], data['Y']['validate'], sequence_length)
 
     # Create fixed negative example validation set
     X_validate_n = X_validate[np.random.permutation(X_validate.shape[0])]
     Y_validate_n = Y_validate[np.random.permutation(Y_validate.shape[0])]
     X_validate_shuffle = np.random.permutation(X_output(X_validate).shape[0])
     data_iterator = utils.get_next_batch(
-        X_train, Y_train, batch_size, sequence_length, max_iter)
+        data['X']['train'], data['Y']['train'], batch_size, sequence_length,
+        max_iter)
     # We will accumulate the mean train cost over each epoch
     train_cost = 0
 
