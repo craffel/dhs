@@ -133,9 +133,14 @@ def train(data, layers, negative_importance, negative_threshold,
         data['X']['validate'], data['Y']['validate'], sequence_length)
 
     # Create fixed negative example validation set
-    X_validate_n = X_validate[np.random.permutation(X_validate.shape[0])]
-    Y_validate_n = Y_validate[np.random.permutation(Y_validate.shape[0])]
-    X_validate_shuffle = np.random.permutation(X_output(X_validate).shape[0])
+    X_validate_shuffle = np.random.permutation(X_validate.shape[0])
+    Y_validate_shuffle = X_validate_shuffle[
+        utils.random_derangement(X_validate.shape[0])]
+    X_validate_n = X_validate[X_validate_shuffle]
+    Y_validate_n = Y_validate[Y_validate_shuffle]
+    # We won't know the # of samples in X_val_output until after computing it,
+    # so we will set this to None to mark it as needing later computing
+    X_val_output_shuffle = None
     data_iterator = utils.get_next_batch(
         data['X']['train'], data['Y']['train'], batch_size, sequence_length,
         max_iter)
@@ -160,17 +165,39 @@ def train(data, layers, negative_importance, negative_threshold,
             epoch_result['train_cost'] = train_cost / float(epoch_size)
             # Reset training cost mean accumulation
             train_cost = 0
-            # Also compute validate cost
-            epoch_result['validate_cost'] = float(cost(
-                X_validate, X_validate_n, Y_validate, Y_validate_n))
 
-            # Compute statistics on validation set
-            X_val_output = X_output(X_validate)
-            Y_val_output = Y_output(Y_validate)
+            # We need to accumulate the validation cost and network output over
+            # batches to avoid MemoryErrors
+            epoch_result['validate_cost'] = 0
+            validate_batches = 0
+            X_val_output = []
+            Y_val_output = []
+            for batch_idx in range(0, X_validate.shape[0], batch_size):
+                # Extract slice from validation set for this batch
+                batch_slice = slice(batch_idx, batch_idx + batch_size)
+                # Compute and accumulate cost
+                epoch_result['validate_cost'] += cost(
+                    X_validate[batch_slice], X_validate_n[batch_slice],
+                    Y_validate[batch_slice], Y_validate_n[batch_slice])
+                # Keep track of # of batches for normalization
+                validate_batches += 1
+                # Compute network output and accumulate result
+                X_val_output.append(X_output(X_validate[batch_slice]))
+                Y_val_output.append(Y_output(Y_validate[batch_slice]))
+            # Normalize cost by number of batches and store
+            epoch_result['validate_cost'] /= float(validate_batches)
+            # Concatenate per-batch output to tensors
+            X_val_output = np.concatenate(X_val_output, axis=0)
+            Y_val_output = np.concatenate(Y_val_output, axis=0)
+            # Create a fixed shuffling of X_val_output
+            if X_val_output_shuffle is None:
+                X_val_output_shuffle = utils.random_derangement(
+                    X_val_output.shape[0])
+
             in_dist, in_mean, in_std = utils.statistics(
                 X_val_output > 0, Y_val_output > 0)
             out_dist, out_mean, out_std = utils.statistics(
-                X_val_output[X_validate_shuffle] > 0, Y_val_output > 0)
+                X_val_output[X_val_output_shuffle] > 0, Y_val_output > 0)
             epoch_result['validate_accuracy'] = in_dist[0]
             epoch_result['validate_in_class_distance_mean'] = in_mean
             epoch_result['validate_in_class_distance_std'] = in_std
