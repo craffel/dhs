@@ -93,7 +93,7 @@ def train(data, layers, negative_importance, negative_threshold,
             layers['Y'][-1], Y_n_input, deterministic=deterministic)
 
         # Unthresholded, unscaled cost of positive examples across modalities
-        cost_p = T.mean((X_p_output - Y_p_output)**2)
+        cost_p = T.mean(T.sum((X_p_output - Y_p_output)**2, axis=1))
         # Thresholded, scaled cost of cross-modality negative examples
         cost_n = negative_importance*hinge_cost(
             negative_threshold, X_n_output, Y_n_output)
