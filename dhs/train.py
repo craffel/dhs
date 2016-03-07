@@ -98,8 +98,8 @@ def train(data, layers, negative_importance, negative_threshold,
         cost_n = negative_importance*hinge_cost(
             negative_threshold, X_n_output, Y_n_output)
         # Cost to encourage each output unit to vary
-        cost_e = entropy_importance*(
-            T.mean(X_p_output**2) + T.mean(Y_p_output**2))
+        cost_e = entropy_importance*T.mean(
+            T.sum(X_p_output**2, axis=1) + T.sum(Y_p_output**2, axis=1))
         # Sum positive and negative costs for overall cost
         cost = cost_p + cost_n + cost_e
         return cost
